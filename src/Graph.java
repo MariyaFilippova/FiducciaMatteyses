@@ -1,10 +1,12 @@
 import java.io.File;
+import java.io.FileWriter;
+import java.lang.reflect.Array;
 import java.util.*;
 
 
 class Part {
     int numberOfCells;
-    TreeMap<Integer, LinkedList<Cell>> gain;
+    TreeMap<Integer, ArrayList<Cell>> gain;
     int key;
 
     Part(int key) {
@@ -14,47 +16,49 @@ class Part {
 }
 
 class Partition {
-    int balance;
     Cell movedCell;
     int cost;
 }
 
 public class Graph {
-    Set<Integer> visited;
+    int[] visited;
     int numberOfEdges;
     int numberOfCells;
     Part A;
     Part B;
     Edge[] edges;
     Cell[] vertices;
-    int currentCutSize;
 
-    private Graph() {
+    private Graph(int numberOfEdges, int numberOfCells) {
+        this.numberOfCells = numberOfCells;
+        this.numberOfEdges = numberOfEdges;
         A = new Part(0);
         B = new Part(1);
         edges = new Edge[numberOfEdges];
         vertices = new Cell[numberOfCells];
-        visited = new HashSet<>();
-        currentCutSize = 0;
+        visited = new int[numberOfCells];
     }
 
     public Partition moveVertex(Part part) {
         Partition partition = new Partition();
-        Cell moved = part.gain.lastEntry().getValue().getFirst();
-        part.gain.lastEntry().getValue().removeFirst();
-        this.visited.add(moved.key);
+        Cell moved = part.gain.lastEntry().getValue().get(0);
+        part.gain.lastEntry().getValue().remove(0);
+        if (part.gain.lastEntry().getValue().size() == 0) {
+            part.gain.remove(part.gain.lastKey());
+        }
         partition.movedCell = moved;
-        reCountGains(moved, part);
-        partition.balance = Math.abs(this.A.numberOfCells - this.B.numberOfCells);
-        partition.cost = currentCutSize;
+        reCountGains(moved);
+        partition.cost = getCut();
         return partition;
     }
 
-    public void reCountGains(Cell moved, Part part) {
-        Part sourcePart = part.key == 0 ? A : B;
+    public void reCountGains(Cell moved) {
+        Part sourcePart = moved.part == 0 ? A : B;
         sourcePart.numberOfCells--;
-        Part destPart = sourcePart.key == 0 ? B : A;
+        Part destPart = moved.part == 0 ? B : A;
         destPart.numberOfCells++;
+        moved.part = moved.part == 0 ? 1 : 0;
+        visited[moved.key - 1] = 1;
         for (Edge e : moved.edges) {
             boolean onlyOneInDestPartAfterMove = true;
             boolean onlyOneInSourcePartBeforeMove = true;
@@ -65,7 +69,6 @@ public class Graph {
 
             for (Cell cell : e.cells) {
                 if (cell.part == destPart.key) {
-                    currentCutSize--;
                     onlyOneInDestPartAfterMove = false;
                     if (seenCellInDest) {
                         onlyOneInDestPartBeforeMove = false;
@@ -74,8 +77,7 @@ public class Graph {
                         seenCellInDest = true;
                     }
                 }
-                if (cell.part == sourcePart.key && cell.key != moved.key) {
-                    currentCutSize++;
+                if (cell.part == sourcePart.key) {
                     onlyOneInSourcePartBeforeMove = false;
                     if (seenCellInSource) {
                         onlyOneInSourcePartAfterMove = false;
@@ -87,21 +89,47 @@ public class Graph {
             }
             if (onlyOneInDestPartAfterMove || onlyOneInSourcePartBeforeMove || onlyOneInSourcePartAfterMove || onlyOneInDestPartBeforeMove) {
                 for (Cell cell : e.cells) {
-                    sourcePart.gain.get(cell.gain).remove(cell);
+                    int prevGain = cell.gain;
+                    if (visited[cell.key - 1] == 1) {
+                        continue;
+                    }
                     if (onlyOneInDestPartAfterMove || onlyOneInSourcePartAfterMove) {
                         cell.gain++;
                     }
-                    else {
+                    if (onlyOneInSourcePartBeforeMove || onlyOneInDestPartBeforeMove) {
                         cell.gain--;
                     }
-                    sourcePart.gain.get(cell.gain).add(cell);
+                    if (cell.gain == prevGain) {
+                        continue;
+                    }
+                    Part cellPart = cell.part == 0 ? A : B;
+                    if (!cellPart.gain.containsKey(cell.gain)) {
+                        cellPart.gain.put(cell.gain, new ArrayList<>());
+                    }
+                    cellPart.gain.get(cell.gain).add(cell);
+                    cellPart.gain.get(prevGain).remove(cell);
+                    if (cellPart.gain.get(prevGain).size() == 0) {
+                        cellPart.gain.remove(prevGain);
+                    }
                 }
             }
         }
     }
 
     public Partition newPartition() {
-        if (A.numberOfCells < B.numberOfCells) {
+        if (A.gain.isEmpty() && B.gain.isEmpty()) {
+            return null;
+        }
+        if (A.gain.isEmpty()) {
+            return moveVertex(B);
+        }
+        if (B.gain.isEmpty()) {
+            return moveVertex(A);
+        }
+        if (Math.abs(A.numberOfCells - B.numberOfCells) <= 2) {
+            return A.gain.lastEntry().getKey() > B.gain.lastEntry().getKey() ? moveVertex(A) : moveVertex(B);
+        }
+        else if (A.numberOfCells < B.numberOfCells) {
             return moveVertex(B);
         } else {
             return moveVertex(A);
@@ -109,17 +137,19 @@ public class Graph {
     }
 
     public void gainContainerInitializer() {
+        Arrays.fill(visited, 0);
+        A.gain.clear();
+        B.gain.clear();
         for (int i = 0; i < numberOfCells; i++) {
             int part = vertices[i].part;
             int key = vertices[i].key;
             int gain = 0;
-            for (int j = 0; j < vertices[i].edges.size(); i++) {
+            for (int j = 0; j < vertices[i].edges.size(); j++) {
                 boolean here = true;
                 boolean there = true;
                 for (int k = 0; k < vertices[i].edges.get(j).cells.size(); k++) {
                     Cell cell = vertices[i].edges.get(j).cells.get(k);
                     if (cell.part != part) {
-                        currentCutSize++;
                         here = false;
                     }
                     if (cell.part == part && cell.key != key) {
@@ -135,31 +165,72 @@ public class Graph {
             }
             vertices[i].gain = gain;
             if (part == 0) {
-                List<Cell> cellsContainer = this.A.gain.getOrDefault(gain, new LinkedList<>());
+                ArrayList<Cell> cellsContainer = this.A.gain.getOrDefault(gain, new ArrayList<>());
                 cellsContainer.add(vertices[i]);
+                this.A.gain.put(gain, cellsContainer);
             }
             if (part == 1) {
-                List<Cell> cellsContainer = this.B.gain.getOrDefault(gain, new LinkedList<>());
+                ArrayList<Cell> cellsContainer = this.B.gain.getOrDefault(gain, new ArrayList<>());
                 cellsContainer.add(vertices[i]);
+                this.B.gain.put(gain, cellsContainer);
             }
         }
-        currentCutSize /= 2;
+        print();
     }
 
-    static void parseInput(Graph graph) {
-        File file = new File("my.txt");
+    void print() {
+        File file = new File("/Users/mariafilippova/study/FiducciaMatteyses/src/res.txt");
+        try(FileWriter outputStream = new FileWriter(file)) {
+            outputStream.write("Left\n");
+            for (Map.Entry<Integer, ArrayList<Cell>> entry: A.gain.entrySet()) {
+                outputStream.write(entry.getKey() + ": ");
+                for (Cell cell : entry.getValue()) {
+                    outputStream.write(cell.key + " ");
+                }
+                outputStream.write("\n");
+            }
+        }
+        catch (Exception e) {
+
+        }
+    }
+
+    int getCut() {
+        int cut = 0;
+        for (Edge e: edges) {
+            boolean inA = false;
+            boolean inB = false;
+            for (Cell cell : e.cells) {
+                if (cell.part == 0) {
+                    inA = true;
+                }
+                else {
+                    inB = true;
+                }
+                if (inA && inB) {
+                    cut++;
+                    break;
+                }
+            }
+        }
+        return cut;
+    }
+
+    static Graph parseInput() {
+        Graph graph = null;
+        File file = new File("/Users/mariafilippova/study/FiducciaMatteyses/src/my.txt");
         try (Scanner scanner = new Scanner(file)) {
-            graph.numberOfEdges = scanner.nextInt();
-            graph.numberOfCells = scanner.nextInt();
+            graph = new Graph(scanner.nextInt(), scanner.nextInt());
             graph.A.numberOfCells = graph.numberOfCells / 2;
             graph.B.numberOfCells = graph.numberOfCells / 2 + graph.numberOfCells % 2;
+            scanner.nextLine();
             for (int i = 0; i < graph.numberOfEdges; i++) {
                 Edge e = new Edge(i);
                 graph.edges[e.key] = e;
                 e.cells = new ArrayList<>();
                 String[] values = scanner.nextLine().split(" ");
                 for (int j = 0; j < values.length; j++) {
-                    int key = Integer.parseInt(values[j]);
+                    int key = Integer.parseInt(values[j]) - 1;
                     if (graph.vertices[key] == null) {
                         Cell cell = new Cell(Integer.parseInt(values[j]), graph.numberOfCells);
                         graph.vertices[key] = cell;
@@ -169,31 +240,55 @@ public class Graph {
                 }
             }
         } catch (Exception e) {
-            System.out.println("Error");
+            System.out.println(e.getMessage());
         }
+        return graph;
     }
 
     public static void main(String[] args) {
-        Graph graph = new Graph();
-        parseInput(graph);
-        graph.gainContainerInitializer();
-        Stack<Partition> stack = new Stack<>();
-        while (graph.visited.size() != graph.numberOfCells) {
-            stack.push(graph.newPartition());
-        }
-        Partition minBalancePartition;
-        Partition minCostPartition;
-        int minCost = Integer.MAX_VALUE;
-        int minBalance = Integer.MAX_VALUE;
-        while (!stack.isEmpty()) {
-            Partition partition = stack.pop();
-            if (minCost > partition.cost) {
-                minCostPartition = partition;
-                minCost = partition.cost;
+        Graph graph = parseInput();
+        int cut = Integer.MAX_VALUE;
+        while (true) {
+            graph.gainContainerInitializer();
+            Partition initialPartition = new Partition();
+            initialPartition.cost = graph.getCut();
+            ArrayList<Partition> stack = new ArrayList<>();
+            stack.add(initialPartition);
+            while (true) {
+                Partition partition = graph.newPartition();
+                if (partition == null) {
+                    break;
+                }
+                stack.add(partition);
             }
-            if (minBalance > partition.balance) {
-                minBalancePartition = partition;
-                minBalance = partition.balance;
+            Partition minCostPartition = null;
+            int minCost = Integer.MAX_VALUE;
+            for (Partition partition : stack) {
+                if (minCost > partition.cost) {
+                    minCostPartition = partition;
+                    minCost = partition.cost;
+                }
+            }
+            if (minCost >= cut) {
+                break;
+            }
+            cut = minCost;
+            for (int i = stack.size() - 1; i >= 0; i--) {
+                if (stack.get(i).equals(minCostPartition)) {
+                    break;
+                }
+                else {
+                    if (stack.get(i).movedCell.part == 0) {
+                        graph.A.numberOfCells--;
+                        graph.B.numberOfCells++;
+                        stack.get(i).movedCell.part = 1;
+                    }
+                    else {
+                        graph.A.numberOfCells++;
+                        graph.B.numberOfCells--;
+                        stack.get(i).movedCell.part = 0;
+                    }
+                }
             }
         }
     }
@@ -222,9 +317,8 @@ class Cell {
     }
 
     Cell(int key, int n) {
-        if (key < n / 2) {
+        if (key <= n / 2) {
             part = 0;
-
         } else {
             part = 1;
         }
