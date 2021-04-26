@@ -4,7 +4,7 @@ import java.util.*;
 
 class Part {
     int numberOfCells;
-    TreeMap<Integer, ArrayList<Cell>> gain;
+    TreeMap<Integer, LinkedList<Cell>> gain;
     int key;
 
     Part(int key) {
@@ -70,8 +70,7 @@ public class Graph {
                     onlyOneInDestPartAfterMove = false;
                     if (seenCellInDest) {
                         onlyOneInDestPartBeforeMove = false;
-                    }
-                    else {
+                    } else {
                         seenCellInDest = true;
                     }
                 }
@@ -79,8 +78,7 @@ public class Graph {
                     onlyOneInSourcePartBeforeMove = false;
                     if (seenCellInSource) {
                         onlyOneInSourcePartAfterMove = false;
-                    }
-                    else {
+                    } else {
                         seenCellInSource = true;
                     }
                 }
@@ -102,7 +100,7 @@ public class Graph {
                     }
                     Part cellPart = cell.part == 0 ? A : B;
                     if (!cellPart.gain.containsKey(cell.gain)) {
-                        cellPart.gain.put(cell.gain, new ArrayList<>());
+                        cellPart.gain.put(cell.gain, new LinkedList<>());
                     }
                     cellPart.gain.get(cell.gain).add(cell);
                     cellPart.gain.get(prevGain).remove(cell);
@@ -126,8 +124,7 @@ public class Graph {
         }
         if (Math.abs(A.numberOfCells - B.numberOfCells) <= 2) {
             return A.gain.lastEntry().getKey() > B.gain.lastEntry().getKey() ? moveVertex(A) : moveVertex(B);
-        }
-        else if (A.numberOfCells < B.numberOfCells) {
+        } else if (A.numberOfCells < B.numberOfCells) {
             return moveVertex(B);
         } else {
             return moveVertex(A);
@@ -163,12 +160,12 @@ public class Graph {
             }
             vertices[i].gain = gain;
             if (part == 0) {
-                ArrayList<Cell> cellsContainer = this.A.gain.getOrDefault(gain, new ArrayList<>());
+                LinkedList<Cell> cellsContainer = this.A.gain.getOrDefault(gain, new LinkedList<>());
                 cellsContainer.add(vertices[i]);
                 this.A.gain.put(gain, cellsContainer);
             }
             if (part == 1) {
-                ArrayList<Cell> cellsContainer = this.B.gain.getOrDefault(gain, new ArrayList<>());
+                LinkedList<Cell> cellsContainer = this.B.gain.getOrDefault(gain, new LinkedList<>());
                 cellsContainer.add(vertices[i]);
                 this.B.gain.put(gain, cellsContainer);
             }
@@ -177,14 +174,13 @@ public class Graph {
 
     int getCut() {
         int cut = 0;
-        for (Edge e: edges) {
+        for (Edge e : edges) {
             boolean inA = false;
             boolean inB = false;
             for (Cell cell : e.cells) {
                 if (cell.part == 0) {
                     inA = true;
-                }
-                else {
+                } else {
                     inB = true;
                 }
                 if (inA && inB) {
@@ -230,49 +226,47 @@ public class Graph {
         long start = System.currentTimeMillis();
         Graph graph = parseInput(fileName);
         int cut = Integer.MAX_VALUE;
-        for (int i = 0; ; i++) {
+        int counter = 0;
+        while (true) {
+            counter++;
             graph.gainContainerInitializer();
             Partition initialPartition = new Partition();
             initialPartition.cost = graph.getCut();
             ArrayList<Partition> stack = new ArrayList<>();
             stack.add(initialPartition);
+            Partition minCostPartition = null;
+            int minCost = Integer.MAX_VALUE;
             while (true) {
                 Partition partition = graph.newPartition();
                 if (partition == null) {
                     break;
                 }
-                stack.add(partition);
-            }
-            Partition minCostPartition = null;
-            int minCost = Integer.MAX_VALUE;
-            for (Partition partition : stack) {
                 if (minCost > partition.cost) {
                     minCostPartition = partition;
                     minCost = partition.cost;
                 }
+                stack.add(partition);
             }
             if (minCost >= cut) {
-                System.out.println("Test name: " + "mmmm" + "\n" +
+                System.out.println("Test name: " + fileName + "\n" +
                         " Num of vertecies " + graph.numberOfCells + "\n" +
                         " Num of edges " + graph.numberOfCells + "\n" +
                         " balance " + Math.abs(graph.A.numberOfCells - graph.B.numberOfCells) + "\n" +
                         " cut " + cut + "\n" +
-                        " time " + (System.currentTimeMillis() - start)/(1000*60) + "\n" +
-                        " iters " + (i + 1));
+                        " time " + (System.currentTimeMillis() - start) / (1000 * 60) + "\n" +
+                        " iters " + counter);
                 break;
             }
             cut = minCost;
-            for (i = stack.size() - 1; i >= 0; i--) {
+            for (int i = stack.size() - 1; i >= 0; i--) {
                 if (stack.get(i).equals(minCostPartition)) {
                     break;
-                }
-                else {
+                } else {
                     if (stack.get(i).movedCell.part == 0) {
                         graph.A.numberOfCells--;
                         graph.B.numberOfCells++;
                         stack.get(i).movedCell.part = 1;
-                    }
-                    else {
+                    } else {
                         graph.A.numberOfCells++;
                         graph.B.numberOfCells--;
                         stack.get(i).movedCell.part = 0;
