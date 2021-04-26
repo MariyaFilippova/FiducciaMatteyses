@@ -1,5 +1,4 @@
 import java.io.File;
-import java.io.FileWriter;
 import java.util.*;
 
 
@@ -174,24 +173,6 @@ public class Graph {
                 this.B.gain.put(gain, cellsContainer);
             }
         }
-        print();
-    }
-
-    void print() {
-        File file = new File("/Users/mariafilippova/study/FiducciaMatteyses/src/res.txt");
-        try(FileWriter outputStream = new FileWriter(file)) {
-            outputStream.write("Left\n");
-            for (Map.Entry<Integer, ArrayList<Cell>> entry: A.gain.entrySet()) {
-                outputStream.write(entry.getKey() + ": ");
-                for (Cell cell : entry.getValue()) {
-                    outputStream.write(cell.key + " ");
-                }
-                outputStream.write("\n");
-            }
-        }
-        catch (Exception e) {
-
-        }
     }
 
     int getCut() {
@@ -215,9 +196,9 @@ public class Graph {
         return cut;
     }
 
-    static Graph parseInput() {
+    static Graph parseInput(String fileName) {
         Graph graph = null;
-        File file = new File("/Users/mariafilippova/study/FiducciaMatteyses/src/my.txt");
+        File file = new File("./src/" + fileName);
         try (Scanner scanner = new Scanner(file)) {
             graph = new Graph(scanner.nextInt(), scanner.nextInt());
             graph.A.numberOfCells = graph.numberOfCells / 2;
@@ -245,9 +226,11 @@ public class Graph {
     }
 
     public static void main(String[] args) {
-        Graph graph = parseInput();
+        String fileName = args[0];
+        long start = System.currentTimeMillis();
+        Graph graph = parseInput(fileName);
         int cut = Integer.MAX_VALUE;
-        while (true) {
+        for (int i = 0; ; i++) {
             graph.gainContainerInitializer();
             Partition initialPartition = new Partition();
             initialPartition.cost = graph.getCut();
@@ -269,10 +252,17 @@ public class Graph {
                 }
             }
             if (minCost >= cut) {
+                System.out.println("Test name: " + "mmmm" + "\n" +
+                        " Num of vertecies " + graph.numberOfCells + "\n" +
+                        " Num of edges " + graph.numberOfCells + "\n" +
+                        " balance " + Math.abs(graph.A.numberOfCells - graph.B.numberOfCells) + "\n" +
+                        " cut " + cut + "\n" +
+                        " time " + (System.currentTimeMillis() - start)/(1000*60) + "\n" +
+                        " iters " + (i + 1));
                 break;
             }
             cut = minCost;
-            for (int i = stack.size() - 1; i >= 0; i--) {
+            for (i = stack.size() - 1; i >= 0; i--) {
                 if (stack.get(i).equals(minCostPartition)) {
                     break;
                 }
